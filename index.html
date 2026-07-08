@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Germany Trip — Day Map</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+// Fallback: if the primary CDN didn't define L, inject unpkg synchronously-ish and boot when ready.
+window.__leafletReady=function(cb){
+  if(window.L){cb();return;}
+  var css=document.createElement("link");css.rel="stylesheet";
+  css.href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";document.head.appendChild(css);
+  var s=document.createElement("script");s.src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+  s.onload=cb;s.onerror=function(){document.getElementById("map").innerHTML=
+    '<div style="padding:24px;font-family:sans-serif;color:#1c3a2e">Map library couldn\'t load — check the network connection and reload.</div>';};
+  document.head.appendChild(s);
+};
+</script>
+<style>
+  :root{
+    --pine:#1c3a2e; --pine-2:#274c3c; --cream:#f3efe4; --cream-2:#e7e0cd;
+    --ink:#20241f; --amber:#d9932a; --amber-ink:#7a4d09; --line:#cabfa5;
+    --shadow:0 6px 24px rgba(28,58,46,.18);
+    --d1:#c1502e; --d2:#d98b28; --d3:#6c8a3a; --d4:#2f7d78; --d5:#3f6fb0;
+    --d6:#8a4b9c; --d7:#b03a63; --d8:#546a2e; --d9:#2c6e63; --d10:#7a5a2a;
+    --la:#b5471f; --lb:#1f6f8a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:"Iowan Old Style","Palatino Linotype",Georgia,serif;color:var(--ink);background:var(--cream)}
+  #app{display:flex;height:100vh;height:100dvh;overflow:hidden}
+  /* SIDEBAR */
+  #panel{width:340px;flex:0 0 340px;background:var(--cream);border-right:1px solid var(--line);
+    display:flex;flex-direction:column;box-shadow:var(--shadow);z-index:1000}
+  .phead{padding:18px 18px 12px;background:var(--pine);color:var(--cream)}
+  .phead h1{margin:0;font-size:20px;letter-spacing:.3px;font-weight:600}
+  .phead p{margin:5px 0 0;font-size:12.5px;opacity:.82;font-family:ui-sans-serif,system-ui,sans-serif}
+  .scroll{overflow-y:auto;padding:14px 14px 40px;flex:1}
+  .legtitle{font-family:ui-sans-serif,system-ui,sans-serif;font-size:11px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--pine-2);margin:16px 4px 8px;font-weight:700}
+  .legtitle:first-child{margin-top:2px}
+  .daybtn{display:flex;align-items:center;gap:10px;width:100%;text-align:left;border:1px solid var(--line);
+    background:#fff;border-radius:10px;padding:9px 11px;margin:6px 0;cursor:pointer;transition:.15s;
+    font-family:ui-sans-serif,system-ui,sans-serif}
+  .daybtn:hover{transform:translateX(2px);border-color:var(--pine-2)}
+  .daybtn.active{background:var(--pine);color:var(--cream);border-color:var(--pine)}
+  .swatch{width:14px;height:14px;border-radius:4px;flex:0 0 14px}
+  .daybtn .dm{font-size:10.5px;opacity:.7;font-weight:600;letter-spacing:.05em}
+  .daybtn .dl{font-size:13px;font-weight:600;line-height:1.2}
+  .daybtn .sub{font-size:11px;opacity:.62;font-family:ui-sans-serif,system-ui,sans-serif}
+  .allbtn{margin-top:2px;background:var(--amber);border-color:var(--amber);color:#2b1a02;font-weight:700}
+  .allbtn.active{background:var(--amber);color:#2b1a02;box-shadow:inset 0 0 0 2px var(--pine)}
+  /* toggle */
+  .togwrap{margin:14px 4px 4px;font-family:ui-sans-serif,system-ui,sans-serif}
+  .toglab{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--pine-2);font-weight:700;margin-bottom:7px}
+  .seg{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .seg button{flex:1;border:0;background:#fff;padding:8px 6px;cursor:pointer;font-size:12px;font-weight:600;
+    font-family:inherit;color:var(--ink);transition:.15s;line-height:1.15}
+  .seg button.on{background:var(--pine);color:var(--cream)}
+  .seg button small{display:block;font-size:9.5px;opacity:.7;font-weight:500;letter-spacing:.03em}
+  .hint{font-size:11px;color:#6f6a5c;font-family:ui-sans-serif,system-ui,sans-serif;margin:10px 4px;line-height:1.4}
+  /* stop list */
+  .stoplist{margin:8px 2px 0}
+  .stop{display:flex;gap:9px;padding:8px 6px;border-bottom:1px solid var(--cream-2);font-family:ui-sans-serif,system-ui,sans-serif}
+  .stop .idx{flex:0 0 22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-size:11px;font-weight:700;color:#fff}
+  .stop .info{flex:1;min-width:0}
+  .stop .nm{font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px}
+  .star{color:var(--amber);font-size:12px}
+  .stop .mt{font-size:11px;color:#6f6a5c;margin-top:1px}
+  .stop .nav{font-size:11px;color:var(--d4);text-decoration:none;font-weight:600;white-space:nowrap;align-self:center}
+  .stop .nav:hover{text-decoration:underline}
+  /* MAP */
+  #map{flex:1;height:100%}
+  .leaflet-container{background:#dfe6df;font-family:ui-sans-serif,system-ui,sans-serif}
+  .pin{border-radius:50%;border:2.5px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.4);
+    display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:12px}
+  .pop b{font-family:ui-sans-serif,system-ui,sans-serif}
+  .pop a{display:inline-block;margin-top:5px;font-family:ui-sans-serif,system-ui,sans-serif;
+    font-size:12px;color:var(--d4);font-weight:700;text-decoration:none}
+  .homepin{background:var(--pine);color:#fff;border-radius:6px;border:2.5px solid var(--cream);
+    display:flex;align-items:center;justify-content:center;font-size:13px;box-shadow:0 1px 6px rgba(0,0,0,.5)}
+  /* mobile drawer handle */
+  #handle{display:none}
+  @media (max-width:760px){
+    #app{flex-direction:column;height:100vh;height:100dvh}
+    #map{flex:1 1 auto;order:1;height:auto;min-height:0;min-width:0}
+    #panel{width:100%;flex:0 0 auto;order:2;border-right:0;border-top:1px solid var(--line);
+      height:44vh;height:44dvh;min-height:0;border-radius:16px 16px 0 0;margin-top:-16px;position:relative;transition:height .25s;
+      padding-bottom:env(safe-area-inset-bottom)}
+    #panel.collapsed{height:calc(74px + env(safe-area-inset-bottom))}
+    #handle{display:flex;justify-content:center;padding:7px 0 3px;cursor:pointer}
+    #handle span{width:38px;height:4px;border-radius:3px;background:var(--line)}
+    .phead{border-radius:16px 16px 0 0;padding:4px 16px 10px}
+    .phead h1{font-size:16px}.phead p{font-size:11px}
+    .scroll{padding:12px 14px 30px}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="map"></div>
+  <aside id="panel">
+    <div id="handle"><span></span></div>
+    <div class="phead">
+      <h1>Germany Trip — Day Map</h1>
+      <p>Base: Donaueschingen · tap a day to route it · ★ = Anika's list</p>
+    </div>
+    <div class="scroll">
+      <button class="daybtn allbtn active" data-all="1">
+        <span class="swatch" style="background:var(--pine)"></span>
+        <span><span class="dl">Overview — all stops</span><span class="sub">every location, no route</span></span>
+      </button>
+
+      <div class="togwrap">
+        <div class="toglab">Leg 2 plan</div>
+        <div class="seg" id="seg">
+          <button data-var="A" class="on">Thun overnight<small>Aug 19 night near Thun</small></button>
+          <button data-var="B">No overnight<small>all day-trips from base</small></button>
+        </div>
+      </div>
+
+      <div class="legtitle">Leg 1 · Aug 3–12</div>
+      <div id="leg1days"></div>
+      <div class="legtitle" id="leg2title">Leg 2 · Aug 19–22</div>
+      <div id="leg2days"></div>
+
+      <div class="stoplist" id="stoplist"></div>
+      <div class="hint" id="hint">Routes follow roads (car) via OSRM. Google Maps link opens turn-by-turn nav for each stop.</div>
+    </div>
+  </aside>
+</div>
+<script>
+const HOME=[47.9490,8.5017]; // Donaueschingen
+// ---- stop DB: [lat,lng] from file addresses / city centers ----
+const P={
+  triberg:[48.1330,8.2318], clockhouse:[48.2170,8.2050], rotenbach:[47.8890,8.3450], feldberg:[47.8740,8.0040],
+  testturm:[48.1870,8.6510], neckarline:[48.1610,8.6250], rottweil:[48.1680,8.6270],
+  rhinefalls:[47.6779,8.6156], steinamrhein:[47.6600,8.8590], schaffhausen:[47.6970,8.6340], konstanz:[47.6603,9.1758],
+  strasbourg:[48.5820,7.7509], colmar:[48.0793,7.3585],
+  titisee:[47.9000,8.1450], freiburg:[47.9959,7.8494],
+  hohenzollern:[48.3236,8.9678], nagold:[48.5510,8.7230],
+  ludwigsburg:[48.8976,9.1916], stuttgart:[48.7758,9.1829], rittersport:[48.6420,9.1310],
+  hornbergcastle:[49.2960,9.1440], heidelberg:[49.4110,8.7146],
+  rothenburg:[49.3757,10.1790], dinkelsbuhl:[49.0710,10.3190], nordlingen:[48.8510,10.4880],
+  laderach:[47.3690,8.5390], zurich:[47.3720,8.5410], lindt:[47.3230,8.5490], zrhapt:[47.4582,8.5555],
+  // leg 2
+  thun:[46.7580,7.6280], spiez:[46.6860,7.6800], interlaken:[46.6863,7.8632], iseltwald:[46.6900,7.9560],
+  aare:[46.7280,8.1900], bern:[46.9480,7.4474], lucerne:[47.0502,8.3093], vitznau:[47.0090,8.4840],
+  appenzell:[47.3310,9.4090], basel:[47.5596,7.5886], trois:[47.5610,7.5870],
+};
+const G=(latlng)=>`https://www.google.com/maps/dir/?api=1&destination=${latlng[0]},${latlng[1]}`;
+
+// day color vars
+const C=["--d1","--d2","--d3","--d4","--d5","--d6","--d7","--d8","--d9","--d10"];
+const cv=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+// ---- itinerary ----
+// stop: {k(ey), n(ame), star, cost}
+const S=(k,n,star,cost)=>({k,n,star:!!star,cost:cost||""});
+const LEG1=[
+ {day:"Day 1",date:"Sun Aug 3",label:"Black Forest core",stops:[S("triberg","Triberger Wasserfälle",1,"~€7"),S("clockhouse","Black Forest Clock House",1,"Free"),S("rotenbach","Großer Rötenbach-Wasserfall",0,"Free"),S("feldberg","Feldberg",1,"Free")]},
+ {day:"Day 2",date:"Mon Aug 4",label:"Rottweil",stops:[S("testturm","TK Elevator Testturm",1,"$30"),S("neckarline","Neckar zipline – Süd",1,"paid"),S("rottweil","Rottweil old town",1,"Free")]},
+ {day:"Day 3",date:"Tue Aug 5",label:"Rhine Falls → Konstanz",stops:[S("rhinefalls","Rhine Falls (free N bank)",0,"Free"),S("schaffhausen","Schaffhausen",0,"Free"),S("steinamrhein","Stein am Rhein",0,"Free"),S("konstanz","Konstanz",1,"Free")]},
+ {day:"Day 4",date:"Wed Aug 6",label:"Strasbourg + Colmar",stops:[S("strasbourg","Strasbourg",0,"Free"),S("colmar","Colmar",0,"Free")]},
+ {day:"Day 5",date:"Thu Aug 7",label:"Freiburg + Titisee",stops:[S("titisee","Titisee",0,"Free"),S("freiburg","Freiburg im Breisgau",1,"Free")]},
+ {day:"Day 6",date:"Fri Aug 8",label:"Hohenzollern",stops:[S("hohenzollern","Hohenzollern Castle",0,"~€14 grounds"),S("nagold","Nagold (backfill)",0,"Free")]},
+ {day:"Day 7",date:"Sat Aug 9",label:"Stuttgart region",stops:[S("ludwigsburg","Ludwigsburg",0,"Free ext."),S("stuttgart","Stuttgart – Königstraße",0,"Free"),S("rittersport","Ritter Sport Waldenbuch",1,"Free")]},
+ {day:"Day 8",date:"Sun Aug 10",label:"Heidelberg + Neckar",stops:[S("hornbergcastle","Hornberg Castle",0,"$16"),S("heidelberg","Heidelberg + Castle",0,"Free/€9")]},
+ {day:"Day 9",date:"Mon Aug 11",label:"Romantic Road: Rothenburg + Dinkelsbühl",stops:[S("rothenburg","Rothenburg ob der Tauber",0,"Free"),S("dinkelsbuhl","Dinkelsbühl",0,"Free"),S("nordlingen","Nördlingen (optional)",0,"Free")]},
+ {day:"Day 10",date:"Tue Aug 12",label:"Zurich (fly 21:20)",stops:[S("lindt","Lindt Home of Chocolate",0,"CHF15"),S("laderach","Läderach",0,"Free"),S("zurich","Zurich old town",0,"Free"),S("zrhapt","Zurich Airport",0,"—")]},
+];
+// Leg 2 variants — Aug 19 STARTS at ZRH airport
+// A: Bern+Basel on arrival day → overnight Thun → Spiez+Oberland back to base
+const LEG2A=[
+ {day:"Day 11",date:"Tue Aug 19",label:"Land ZRH → Basel → Bern → o/night Thun",start:"zrhapt",end:"thun",stops:[S("basel","Basel + Les Trois Rois",0,"Free"),S("bern","Bern",0,"Free")]},
+ {day:"Day 12",date:"Wed Aug 20",label:"Thun → Oberland → base",start:"thun",stops:[S("spiez","Spiez",0,"Free"),S("interlaken","Interlaken",0,"Free"),S("iseltwald","Iseltwald",0,"dock fee"),S("aare","Aare Gorge",0,"CHF12")]},
+ {day:"Day 13",date:"Thu Aug 21",label:"Lucerne + Vitznau",stops:[S("lucerne","Lucerne",0,"Free"),S("vitznau","Vitznau",0,"Free")]},
+ {day:"Day 14",date:"Fri Aug 22",label:"Appenzell",stops:[S("appenzell","Appenzell",0,"Free"),S("rhinefalls","Rhine Falls (if new)",0,"Free")]},
+];
+// B: no overnight. Oberland one long arrival day → base. Bern+Basel paired. Lucerne+Vitznau paired.
+const LEG2B=[
+ {day:"Day 11",date:"Tue Aug 19",label:"Land ZRH → full Oberland → base",start:"zrhapt",stops:[S("thun","Thun",0,"Free"),S("spiez","Spiez",0,"Free"),S("interlaken","Interlaken",0,"Free"),S("iseltwald","Iseltwald",0,"dock fee")]},
+ {day:"Day 12",date:"Wed Aug 20",label:"Lucerne + Vitznau",stops:[S("lucerne","Lucerne",0,"Free"),S("vitznau","Vitznau",0,"Free")]},
+ {day:"Day 13",date:"Thu Aug 21",label:"Bern + Basel",stops:[S("bern","Bern",0,"Free"),S("basel","Basel + Les Trois Rois",0,"Free")]},
+ {day:"Day 14",date:"Fri Aug 22",label:"Appenzell (+ Rhine Falls if new)",stops:[S("appenzell","Appenzell",0,"Free"),S("rhinefalls","Rhine Falls (if new)",0,"Free")]},
+];
+
+let variant="A";
+let map;
+window.__leafletReady(function(){
+map=L.map("map",{zoomControl:true}).setView([47.7,8.4],7);
+L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+  {attribution:'&copy; OpenStreetMap, &copy; CARTO',maxZoom:19}).addTo(map);
+L.marker(HOME,{icon:L.divIcon({className:"",html:'<div class="homepin" style="width:26px;height:26px">⌂</div>',iconSize:[26,26],iconAnchor:[13,13]})})
+  .addTo(map).bindPopup('<div class="pop"><b>Donaueschingen</b><br>Home base — Anika\'s house</div>');
+
+let markers=[], routeLayer=null;
+function clearMap(){routeToken++;markers.forEach(m=>map.removeLayer(m));markers=[];if(routeLayer){map.removeLayer(routeLayer);routeLayer=null;}}
+function pin(latlng,color,label,name,cost,star){
+  const html=`<div class="pin" style="width:26px;height:26px;background:${color}">${label}</div>`;
+  const m=L.marker(latlng,{icon:L.divIcon({className:"",html,iconSize:[26,26],iconAnchor:[13,13]})}).addTo(map);
+  m.bindPopup(`<div class="pop"><b>${star?'★ ':''}${name}</b><br><span style="color:#6f6a5c;font-size:12px">${cost||''}</span><br><a href="${G(latlng)}" target="_blank">Navigate ↗</a></div>`);
+  markers.push(m);return m;
+}
+// --- routing: per-segment, cached, retried. One slow/failed leg no longer
+// kills the whole route (was the Basel/Bern bug: big geometry + 7s abort). ---
+const routeCache={};
+async function osrmSeg(a,b){
+  const q=`${a[1]},${a[0]};${b[1]},${b[0]}`;
+  if(routeCache[q])return routeCache[q];
+  for(let attempt=0;attempt<2;attempt++){
+    const ctrl=new AbortController();
+    const t=setTimeout(()=>ctrl.abort(),20000);
+    try{
+      const r=await fetch(`https://router.project-osrm.org/route/v1/driving/${q}?overview=simplified&geometries=geojson`,{signal:ctrl.signal});
+      const j=await r.json();
+      clearTimeout(t);
+      if(j&&j.code==="Ok"&&j.routes&&j.routes[0]&&j.routes[0].geometry){
+        const line=j.routes[0].geometry.coordinates.map(c=>[c[1],c[0]]);
+        routeCache[q]=line;return line;
+      }
+      return null; // NoRoute → dashed for this segment only
+    }catch(e){
+      clearTimeout(t);
+      if(attempt===0)await new Promise(res=>setTimeout(res,800)); // brief pause, then retry once
+    }
+  }
+  return null;
+}
+let routeToken=0;
+async function drawRoute(coords,color){
+  const my=++routeToken;
+  // fit immediately on the straight-line extent so the view is right even before OSRM answers
+  map.fitBounds(L.latLngBounds(coords).pad(.18));
+  routeLayer=L.layerGroup().addTo(map);
+  const grp=routeLayer;
+  for(let i=0;i<coords.length-1;i++){
+    const seg=await osrmSeg(coords[i],coords[i+1]);
+    if(my!==routeToken)return; // user switched days mid-fetch
+    grp.addLayer(seg
+      ?L.polyline(seg,{color,weight:5,opacity:.85})
+      :L.polyline([coords[i],coords[i+1]],{color,weight:4,opacity:.6,dashArray:"6 8"}));
+  }
+  if(my!==routeToken)return;
+  const layers=grp.getLayers();
+  if(layers.length){
+    const bb=layers[0].getBounds();
+    layers.forEach(l=>bb.extend(l.getBounds()));
+    map.fitBounds(bb.pad(.15));
+  }
+}
+function allStops(){ // union for overview
+  const days=LEG1.concat(variant==="A"?LEG2A:LEG2B);
+  const seen={},list=[];
+  days.forEach(d=>d.stops.forEach(s=>{if(!seen[s.k]){seen[s.k]=1;list.push(s);}}));
+  return list;
+}
+function showOverview(){
+  clearMap();
+  allStops().forEach(s=>pin(P[s.k],cv("--pine"),"",s.n,s.cost,s.star));
+  map.setView([47.6,8.4],7);
+  document.getElementById("stoplist").innerHTML="";
+  document.getElementById("hint").textContent="Overview: all stops for the current Leg-2 plan. Tap a day to route it.";
+}
+function anchorPin(latlng,name){
+  const m=L.marker(latlng,{icon:L.divIcon({className:"",html:'<div class="homepin" style="width:24px;height:24px">'+(name==="Zurich Airport"?"✈":"⌂")+'</div>',iconSize:[24,24],iconAnchor:[12,12]})}).addTo(map);
+  m.bindPopup(`<div class="pop"><b>${name}</b></div>`);markers.push(m);return m;
+}
+function showDay(day,colorVar,idxInLeg){
+  clearMap();
+  const color=cv(colorVar);
+  const startP = day.start?P[day.start]:HOME;
+  const endP   = day.end?P[day.end]:HOME;
+  const startNm= day.start==="zrhapt"?"Zurich Airport":(day.start?"":"base ⌂");
+  const coords=[startP,...day.stops.map(s=>P[s.k]),endP];
+  if(day.start&&day.start!=="zrhapt") anchorPin(startP,"Overnight stop");
+  else if(day.start==="zrhapt") anchorPin(startP,"Zurich Airport");
+  day.stops.forEach((s,i)=>pin(P[s.k],color,String(i+1),s.n,s.cost,s.star));
+  if(day.end&&day.end!=="zrhapt") anchorPin(endP,"Overnight stop");
+  drawRoute(coords,color);
+  // stop list
+  const html=day.stops.map((s,i)=>`<div class="stop">
+    <div class="idx" style="background:${color}">${i+1}</div>
+    <div class="info"><div class="nm">${s.n}${s.star?'<span class="star">★</span>':''}</div>
+      <div class="mt">${s.cost||''}</div></div>
+    <a class="nav" href="${G(P[s.k])}" target="_blank">Nav ↗</a></div>`).join("");
+  const routeDesc = (day.start==="zrhapt"?"from ✈ ZRH":"from base ⌂") + (day.end&&day.end!=="zrhapt"?" · overnight →":" · → base ⌂");
+  document.getElementById("stoplist").innerHTML=`<div class="stop" style="border:0;padding-bottom:2px"><div class="info"><div class="nm" style="font-size:12px;color:var(--pine-2)">${day.date} · ${routeDesc}</div></div></div>`+html;
+  document.getElementById("hint").textContent="Numbered in visiting order. Route follows roads (car).";
+}
+
+// ---- build buttons ----
+function dayButton(d,colorVar,onClick){
+  const b=document.createElement("button");b.className="daybtn";
+  b.innerHTML=`<span class="swatch" style="background:${cv(colorVar)}"></span>
+    <span><span class="dm">${d.day} · ${d.date}</span><br><span class="dl">${d.label}</span></span>`;
+  b.onclick=()=>{setActive(b);onClick();if(window.innerWidth<=760)collapseDrawer(false);};
+  return b;
+}
+let buttons=[];
+function setActive(btn){buttons.forEach(b=>b.classList.remove("active"));document.querySelector(".allbtn").classList.remove("active");if(btn)btn.classList.add("active");}
+function renderDays(){
+  const l1=document.getElementById("leg1days"),l2=document.getElementById("leg2days");
+  l1.innerHTML="";l2.innerHTML="";buttons=[];
+  LEG1.forEach((d,i)=>{const b=dayButton(d,C[i],()=>showDay(d,C[i]));l1.appendChild(b);buttons.push(b);});
+  const leg2=variant==="A"?LEG2A:LEG2B;
+  leg2.forEach((d,i)=>{const cvar=C[i];const b=dayButton(d,cvar,()=>showDay(d,cvar));l2.appendChild(b);buttons.push(b);});
+}
+document.querySelector(".allbtn").onclick=function(){setActive(null);this.classList.add("active");showOverview();};
+// segmented variant toggle
+document.querySelectorAll("#seg button").forEach(btn=>{
+  btn.onclick=()=>{
+    document.querySelectorAll("#seg button").forEach(b=>b.classList.remove("on"));
+    btn.classList.add("on");variant=btn.dataset.var;
+    renderDays();
+    // reset to overview on variant change
+    setActive(null);document.querySelector(".allbtn").classList.add("active");showOverview();
+  };
+});
+// mobile drawer
+function collapseDrawer(state){const p=document.getElementById("panel");p.classList.toggle("collapsed",state);}
+document.getElementById("handle").onclick=()=>{const p=document.getElementById("panel");collapseDrawer(!p.classList.contains("collapsed"));};
+
+// iOS Safari: the map div's size changes with the URL bar, orientation, and the
+// drawer — Leaflet must be told or it renders a partial/blank canvas.
+function fixSize(){if(map)map.invalidateSize();}
+window.addEventListener("resize",fixSize);
+window.addEventListener("orientationchange",()=>setTimeout(fixSize,300));
+if(window.visualViewport)window.visualViewport.addEventListener("resize",fixSize);
+document.getElementById("panel").addEventListener("transitionend",fixSize);
+
+renderDays();
+showOverview();
+setTimeout(fixSize,300);
+setTimeout(fixSize,1000);
+}); // end leafletReady</script>
+</body>
+</html>
